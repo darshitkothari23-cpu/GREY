@@ -1,0 +1,18 @@
+2026-06-06 10:23:39,804 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.183 direction=NEUTRAL confidence=0.0
+2026-06-06 10:23:49,754 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.181 direction=NEUTRAL confidence=0.0
+2026-06-06 10:24:25,081 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.181 direction=NEUTRAL confidence=0.0
+2026-06-06 10:24:42,157 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.181 direction=NEUTRAL confidence=0.0
+2026-06-06 10:25:05,566 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.181 direction=NEUTRAL confidence=0.0
+2026-06-06 10:26:08,248 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.183 direction=NEUTRAL confidence=0.0
+2026-06-06 10:26:34,052 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.183 direction=NEUTRAL confidence=0.328
+2026-06-06 10:26:44,080 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.181 direction=NEUTRAL confidence=0.346
+2026-06-06 10:29:17,459 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.183 direction=NEUTRAL confidence=0.328
+2026-06-06 14:46:14,958 WARNING grey2 Options flow snapshot read failed safely: Extra data: line 26 column 2 (char 580)
+2026-06-06 14:46:14,967 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.377 direction=BULL confidence=0.636
+2026-06-06 14:49:45,712 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.36 direction=BULL confidence=0.608
+2026-06-06 14:53:01,697 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.36 direction=BULL confidence=0.608
+2026-06-06 14:56:30,458 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.36 direction=BULL confidence=0.608
+2026-06-06 14:57:36,476 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.36 direction=BULL confidence=0.608
+2026-06-06 14:57:37,046 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.183 direction=NEUTRAL confidence=0.33
+2026-06-06 14:57:54,023 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.36 direction=BULL confidence=0.608
+2026-06-06 15:12:07,214 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.36 direction=BULL confidence=0.608

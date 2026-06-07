@@ -1,0 +1,35 @@
+{
+  "created_at": 1780738927.12151,
+  "items": [
+    {
+      "collected_at": "2026-06-06T09:42:07.114488+00:00",
+      "matched_terms": [
+        "banks",
+        "financial",
+        "india",
+        "nifty",
+        "vix"
+      ],
+      "published_at": "2026-06-06T09:42:07.114488+00:00",
+      "relevance_score": 0.79,
+      "source": "dummy-news",
+      "summary": "Breadth is supportive while India VIX stays contained.",
+      "title": "NIFTY trades firm as banks and financial stocks lead",
+      "url": ""
+    },
+    {
+      "collected_at": "2026-06-06T09:42:07.114488+00:00",
+      "matched_terms": [
+        "crude",
+        "rbi",
+        "rupee"
+      ],
+      "published_at": "2026-06-06T09:42:07.114488+00:00",
+      "relevance_score": 0.34,
+      "source": "dummy-news",
+      "summary": "Market participants watch rupee, crude, and bond yields.",
+      "title": "RBI liquidity update keeps traders cautious before event window",
+      "url": ""
+    }
+  ]
+}

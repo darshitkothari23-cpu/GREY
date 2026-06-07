@@ -1,0 +1,39 @@
+{
+  "events": [
+    {
+      "name": "RBI MPC Decision",
+      "impact": "HIGH",
+      "region": "IN",
+      "scheduled_at": null,
+      "notes": "High-impact India monetary policy event. Populate scheduled_at when confirmed."
+    },
+    {
+      "name": "Union Budget",
+      "impact": "HIGH",
+      "region": "IN",
+      "scheduled_at": null,
+      "notes": "High-impact India fiscal policy event. Populate scheduled_at when confirmed."
+    },
+    {
+      "name": "US Fed Rate Decision",
+      "impact": "HIGH",
+      "region": "US",
+      "scheduled_at": null,
+      "notes": "Global high-impact monetary policy event. Populate scheduled_at when confirmed."
+    },
+    {
+      "name": "India CPI",
+      "impact": "HIGH",
+      "region": "IN",
+      "scheduled_at": null,
+      "notes": "High-impact inflation release. Populate scheduled_at when confirmed."
+    },
+    {
+      "name": "India WPI (key dates)",
+      "impact": "HIGH",
+      "region": "IN",
+      "scheduled_at": null,
+      "notes": "Key wholesale inflation release dates. Populate scheduled_at when confirmed."
+    }
+  ]
+}

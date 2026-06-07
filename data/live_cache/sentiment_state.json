@@ -1,0 +1,19 @@
+{
+  "confidence": 0.575,
+  "consensus": 0.334,
+  "contradictions": [],
+  "conviction": 0.575,
+  "direction": "BULL",
+  "module_id": "SENTIMENT",
+  "sample_size": 4,
+  "score": 3.338,
+  "source_scores": {
+    "news": 0.281,
+    "stocktwits": 0.38,
+    "twitter": 0.38
+  },
+  "status": "ACTIVE",
+  "surprise": 0.0,
+  "top_driver": "twitter sentiment 0.38; consensus 0.33",
+  "updated_at": 1780738927.1468947
+}

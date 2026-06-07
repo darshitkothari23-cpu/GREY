@@ -1,0 +1,23 @@
+{
+  "report_date": "2026-06-06",
+  "symbol": "NIFTY",
+  "trading_hours": "09:15-15:30",
+  "summary": {
+    "total_moves_identified": 0,
+    "moves_with_early_warning": 0,
+    "efficacy_score": 0.0,
+    "remark": "Daily efficacy report failed safely: OHLCV file not found: nifty_candles.csv"
+  },
+  "market_moves": [],
+  "module_performance_scorecard": {},
+  "daily_insights": {
+    "best_performing_module": null,
+    "worst_performing_module": null,
+    "system_efficacy": "0.0/10",
+    "system_remark": "Could not build report: OHLCV file not found: nifty_candles.csv",
+    "recommendations": [
+      "Check signal log path and OHLCV CSV path."
+    ]
+  },
+  "error": "OHLCV file not found: nifty_candles.csv"
+}
