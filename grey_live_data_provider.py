@@ -94,47 +94,40 @@ class GreyLiveDataProvider:
             return {}
 
     def _fetch_base_context(self, symbol: str) -> dict:
-        """Fetch spot/candle data from broker client without relying on broker VIX."""
+        """Fetch spot/candle data from a public broker adapter.
+
+        GREY intentionally does not call Angel One private helper methods such
+        as _ensure_session(). If the broker session expires, restart GREY or
+        provide an adapter with fetch_base_market_data()/fetch_live_market_data().
+        """
         if self.broker_client is None:
             return {}
 
         # Test clients or future adapters can expose a simple public method.
         if hasattr(self.broker_client, "fetch_base_market_data"):
-            return dict(self.broker_client.fetch_base_market_data(symbol))
-
-        # Use GREY's current LiveMarketDataClient private helpers to avoid its old VIX path.
-        required = (
-            "_ensure_session",
-            "_resolve_index_instrument",
-            "_fetch_nifty_spot",
-        )
-        if all(hasattr(self.broker_client, name) for name in required):
-            self.broker_client._ensure_session()
-            spot_instrument = self.broker_client._resolve_index_instrument(symbol)
-            spot = self.broker_client._fetch_nifty_spot(spot_instrument, symbol)
-            context = {
-                "price": spot.get("price"),
-                "price_change_from_open": spot.get("price", 0.0) - spot.get("open", spot.get("price", 0.0)),
-            }
-            if hasattr(self.broker_client, "_calculate_atr_14"):
-                try:
-                    context["atr_14"] = self.broker_client._calculate_atr_14(spot_instrument)
-                except Exception as exc:
-                    context["atr_14_error"] = str(exc)
-            if hasattr(self.broker_client, "_get_intraday_ohlcv"):
-                try:
-                    context["ohlcv_df"] = self.broker_client._get_intraday_ohlcv(
-                        spot_instrument,
-                        interval="FIFTEEN_MINUTE",
-                        count=512,
-                    )
-                except Exception as exc:
-                    context["ohlcv_error"] = str(exc)
-            return context
+            try:
+                return dict(self.broker_client.fetch_base_market_data(symbol))
+            except Exception as exc:
+                raise RuntimeError(f"Angel One session expired, restart system: {exc}") from exc
 
         # Final fallback for custom adapters; may include their own VIX path.
         if hasattr(self.broker_client, "fetch_live_market_data"):
-            return dict(self.broker_client.fetch_live_market_data(symbol=symbol))
+            try:
+                return dict(self.broker_client.fetch_live_market_data(symbol=symbol))
+            except TypeError:
+                try:
+                    return dict(self.broker_client.fetch_live_market_data(symbol))
+                except Exception as exc:
+                    raise RuntimeError(f"Angel One session expired, restart system: {exc}") from exc
+            except Exception as exc:
+                raise RuntimeError(f"Angel One session expired, restart system: {exc}") from exc
+
+        private_names = {"_ensure_session", "_resolve_index_instrument", "_fetch_nifty_spot"}
+        if any(hasattr(self.broker_client, name) for name in private_names):
+            raise RuntimeError(
+                "Angel One session expired, restart system. GREY no longer calls broker private methods; "
+                "wrap the broker in a public fetch_base_market_data adapter."
+            )
 
         return {}
 

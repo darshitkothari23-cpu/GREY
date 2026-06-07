@@ -16,3 +16,126 @@
 2026-06-06 14:57:37,046 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.183 direction=NEUTRAL confidence=0.33
 2026-06-06 14:57:54,023 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.36 direction=BULL confidence=0.608
 2026-06-06 15:12:07,214 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.36 direction=BULL confidence=0.608
+2026-06-07 15:05:55,100 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.377 direction=BULL confidence=0.636
+2026-06-07 15:05:55,722 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.377 direction=BULL confidence=0.636
+2026-06-07 15:05:56,037 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.377 direction=BULL confidence=0.636
+2026-06-07 15:19:28,284 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:19:28,284 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:19:28,284 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.637
+2026-06-07 15:19:28,284 INFO grey2 Risk position_size confidence=0.637 base_lots=2 account_units=1 lots=2
+2026-06-07 15:19:28,284 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:19:28,284 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.394 direction=BULL confidence=0.637 risk_allowed=True
+2026-06-07 15:19:28,284 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:19:28,284 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:19:28,312 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.637
+2026-06-07 15:19:28,312 INFO grey2 Risk position_size confidence=0.637 base_lots=2 account_units=1 lots=2
+2026-06-07 15:19:28,312 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:19:28,314 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.394 direction=BULL confidence=0.637 risk_allowed=True
+2026-06-07 15:19:28,319 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:19:28,319 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:19:28,321 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.637
+2026-06-07 15:19:28,321 INFO grey2 Risk position_size confidence=0.637 base_lots=2 account_units=1 lots=2
+2026-06-07 15:19:28,321 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:19:28,321 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.394 direction=BULL confidence=0.637 risk_allowed=True
+2026-06-07 15:19:46,338 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:19:46,338 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:19:46,353 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.637
+2026-06-07 15:19:46,353 INFO grey2 Risk position_size confidence=0.637 base_lots=2 account_units=1 lots=2
+2026-06-07 15:19:46,353 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:19:46,353 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.394 direction=BULL confidence=0.637 risk_allowed=True
+2026-06-07 15:21:20,477 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:20,477 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:20,501 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:21:20,501 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:21:20,501 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:20,503 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True
+2026-06-07 15:21:20,513 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:20,513 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:20,531 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:21:20,531 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:21:20,531 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:20,536 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True
+2026-06-07 15:21:20,544 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:20,544 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:20,571 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:21:20,572 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:21:20,572 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:20,574 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True
+2026-06-07 15:21:20,671 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:20,671 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:20,696 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.314
+2026-06-07 15:21:20,696 INFO grey2 Risk position_size confidence=0.314 base_lots=1 account_units=1 lots=1
+2026-06-07 15:21:20,698 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 1, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:20,705 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.176 direction=NEUTRAL confidence=0.314 risk_allowed=True
+2026-06-07 15:21:20,777 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:20,777 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:20,839 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.61
+2026-06-07 15:21:20,861 INFO grey2 Risk position_size confidence=0.610 base_lots=2 account_units=1 lots=2
+2026-06-07 15:21:20,861 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:20,864 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.379 direction=BULL confidence=0.61 risk_allowed=True
+2026-06-07 15:21:32,526 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:32,528 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:32,564 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.61
+2026-06-07 15:21:32,566 INFO grey2 Risk position_size confidence=0.610 base_lots=2 account_units=1 lots=2
+2026-06-07 15:21:32,566 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:32,568 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.379 direction=BULL confidence=0.61 risk_allowed=True
+2026-06-07 15:21:32,577 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:32,577 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:32,593 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.314
+2026-06-07 15:21:32,593 INFO grey2 Risk position_size confidence=0.314 base_lots=1 account_units=1 lots=1
+2026-06-07 15:21:32,594 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 1, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:32,595 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.176 direction=NEUTRAL confidence=0.314 risk_allowed=True
+2026-06-07 15:21:32,766 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:32,766 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:32,801 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:21:32,801 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:21:32,801 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:32,803 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True
+2026-06-07 15:21:32,822 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:32,822 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:32,846 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:21:32,847 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:21:32,847 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:32,850 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True
+2026-06-07 15:21:32,863 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:32,863 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:32,878 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:21:32,878 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:21:32,878 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:32,884 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True
+2026-06-07 15:21:45,655 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:21:45,655 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:21:45,668 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:21:45,668 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:21:45,668 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:21:45,668 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True
+2026-06-07 15:22:51,403 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:22:51,409 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:22:51,480 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.61
+2026-06-07 15:22:51,480 INFO grey2 Risk position_size confidence=0.610 base_lots=2 account_units=1 lots=2
+2026-06-07 15:22:51,480 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:22:51,486 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.379 direction=BULL confidence=0.61 risk_allowed=True
+2026-06-07 15:22:51,502 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:22:51,502 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:22:51,540 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.314
+2026-06-07 15:22:51,540 INFO grey2 Risk position_size confidence=0.314 base_lots=1 account_units=1 lots=1
+2026-06-07 15:22:51,542 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 1, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:22:51,543 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.176 direction=NEUTRAL confidence=0.314 risk_allowed=True
+2026-06-07 15:22:51,926 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:22:51,926 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:22:51,991 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:22:51,991 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:22:51,991 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:22:51,997 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True
+2026-06-07 15:22:52,029 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:22:52,029 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:22:52,069 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:22:52,069 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:22:52,069 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:22:52,073 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True
+2026-06-07 15:22:52,097 INFO grey2 News aggregation disabled by GREY_DISABLE_NEWS
+2026-06-07 15:22:52,097 INFO grey2 Sentiment analysis disabled by GREY_DISABLE_SENTIMENT
+2026-06-07 15:22:52,129 INFO grey2 Risk should_trade allowed=True daily_loss=0.00 max_loss=2000.00 confidence=0.641
+2026-06-07 15:22:52,129 INFO grey2 Risk position_size confidence=0.641 base_lots=2 account_units=1 lots=2
+2026-06-07 15:22:52,129 INFO grey2 Risk decision: {'enabled': True, 'should_trade': True, 'position_lots': 2, 'max_daily_loss_amount': 2000.0, 'current_daily_loss': 0.0}
+2026-06-07 15:22:52,147 INFO grey2 GREY2 cycle complete symbol=NIFTY score=0.397 direction=BULL confidence=0.641 risk_allowed=True

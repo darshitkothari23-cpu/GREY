@@ -70,8 +70,10 @@ def test_enhanced_engine_dummy_cycle() -> None:
     assert isinstance(result["enhanced_signal"]["module_vector"], dict)
     assert "OPTIONS_FLOW" in result["module_outputs"]
     assert "MICROSTRUCTURE" in result["module_outputs"]
-    assert "SENTIMENT" in result["module_outputs"]
+    assert "SENTIMENT" not in result["module_outputs"]
+    assert result["sentiment"]["status"] == "DISABLED"
     assert "REASONING" in result["module_outputs"]
+    assert "risk_decision" in result["enhanced_signal"]
     assert "reasoning_summary" in result["enhanced_signal"]
 
 

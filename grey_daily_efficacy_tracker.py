@@ -60,7 +60,8 @@ class GreyDailyEfficacyTracker:
             day_candles = self._filter_date(candles, effective_date)
 
             # Load and expand GREY Phase 1 signals into module-level records.
-            signals = self.load_signals(signal_log, effective_date, symbol)
+            raw_signals = self._read_signal_records(signal_log)
+            signals = self.load_signals(raw_signals, effective_date, symbol)
 
             # Identify market moves automatically unless the caller provides them.
             moves = market_events or self.identify_market_moves(day_candles)
@@ -73,6 +74,8 @@ class GreyDailyEfficacyTracker:
 
             # Build a plain-English summary and insight section.
             summary = self._summary(evaluated_moves)
+            summary["directional_accuracy"] = self.calculate_directional_accuracy(raw_signals, day_candles)
+            summary["range_bound_accuracy"] = self.calculate_range_bound_accuracy(raw_signals, day_candles)
             insights = self._daily_insights(summary, scorecard)
 
             # Return a dashboard- and JSON-friendly report structure.
@@ -96,6 +99,8 @@ class GreyDailyEfficacyTracker:
                     "total_moves_identified": 0,
                     "moves_with_early_warning": 0,
                     "efficacy_score": 0.0,
+                    "directional_accuracy": 0.0,
+                    "range_bound_accuracy": 0.0,
                     "remark": f"Daily efficacy report failed safely: {exc}",
                 },
                 "market_moves": [],
@@ -201,6 +206,87 @@ class GreyDailyEfficacyTracker:
         except Exception:
             # Candle loading should fail loudly to the caller's safe wrapper.
             raise
+
+    def calculate_directional_accuracy(
+        self,
+        signals: Iterable[Mapping[str, Any]],
+        ohlcv_data: str | Path | pd.DataFrame,
+    ) -> float:
+        """Measure whether BULL/BEAR signals matched the later close direction.
+
+        Inputs are the raw GREY signal records and OHLCV candles. The method
+        returns a percentage from 0.0 to 100.0 and skips neutral, incomplete, or
+        unparseable records instead of crashing the report job.
+        """
+        try:
+            candles = self.load_ohlcv(ohlcv_data)
+            total = 0
+            correct = 0
+            for signal in signals:
+                direction = str(signal.get("direction_bias") or signal.get("direction") or "").upper()
+                if direction not in {"BULL", "BEAR"}:
+                    continue
+
+                start_dt = self._parse_dt(signal.get("timestamp"))
+                if start_dt is None:
+                    continue
+
+                entry_price = self._to_float(signal.get("entry_price") or signal.get("price"))
+                exit_price = self._exit_price_for_signal(signal, candles, start_dt)
+                if entry_price is None or exit_price is None or entry_price <= 0:
+                    continue
+
+                actual_move = exit_price - entry_price
+                total += 1
+                if (direction == "BULL" and actual_move > 0) or (direction == "BEAR" and actual_move < 0):
+                    correct += 1
+
+            return round((correct / total) * 100.0, 2) if total else 0.0
+        except Exception:
+            return 0.0
+
+    def calculate_range_bound_accuracy(
+        self,
+        signals: Iterable[Mapping[str, Any]],
+        ohlcv_data: str | Path | pd.DataFrame,
+    ) -> float:
+        """Measure whether actual highs/lows stayed inside predicted bounds.
+
+        This is the Iron Condor viability metric. Each raw signal must provide
+        predicted_high and predicted_low either at the top level or inside a
+        Kronos packet. A period is correct when actual_high <= predicted_high
+        and actual_low >= predicted_low during the signal evaluation window.
+        """
+        try:
+            candles = self.load_ohlcv(ohlcv_data)
+            total = 0
+            correct = 0
+            for signal in signals:
+                start_dt = self._parse_dt(signal.get("timestamp"))
+                if start_dt is None:
+                    continue
+
+                predicted_high = self._predicted_bound(signal, "predicted_high")
+                predicted_low = self._predicted_bound(signal, "predicted_low")
+                if predicted_high is None or predicted_low is None:
+                    continue
+
+                window = self._signal_candle_window(signal, candles, start_dt)
+                if window.empty:
+                    continue
+
+                actual_high = self._to_float(window["high"].max())
+                actual_low = self._to_float(window["low"].min())
+                if actual_high is None or actual_low is None:
+                    continue
+
+                total += 1
+                if actual_high <= predicted_high and actual_low >= predicted_low:
+                    correct += 1
+
+            return round((correct / total) * 100.0, 2) if total else 0.0
+        except Exception:
+            return 0.0
 
     def identify_market_moves(self, candles: pd.DataFrame) -> list[dict]:
         """Detect rallies, crashes, reversals, breakouts, and consolidation exits."""
@@ -346,6 +432,8 @@ class GreyDailyEfficacyTracker:
             f"Moves identified: {summary.get('total_moves_identified', 0)}",
             f"Moves with early warning: {summary.get('moves_with_early_warning', 0)}",
             f"System efficacy: {summary.get('efficacy_score', 0.0)}/10",
+            f"Directional accuracy: {summary.get('directional_accuracy', 0.0)}%",
+            f"Range-bound accuracy: {summary.get('range_bound_accuracy', 0.0)}%",
             f"Remark: {summary.get('remark', '')}",
             "",
             "Market Moves:",
@@ -690,6 +778,60 @@ class GreyDailyEfficacyTracker:
             return records
         return [dict(record) for record in signal_log]
 
+    def _signal_candle_window(
+        self,
+        signal: Mapping[str, Any],
+        candles: pd.DataFrame,
+        start_dt: datetime,
+    ) -> pd.DataFrame:
+        """Return candles in the signal's evaluation period."""
+        end_dt = (
+            self._parse_dt(signal.get("evaluation_due_at"))
+            or self._parse_dt(signal.get("evaluated_at"))
+            or start_dt + timedelta(minutes=int(self.config["early_warning_minutes"]))
+        )
+        return candles[(candles["timestamp"] >= start_dt) & (candles["timestamp"] < end_dt)].copy()
+
+    def _exit_price_for_signal(
+        self,
+        signal: Mapping[str, Any],
+        candles: pd.DataFrame,
+        start_dt: datetime,
+    ) -> float | None:
+        """Return the last close in a signal evaluation window."""
+        window = self._signal_candle_window(signal, candles, start_dt)
+        if window.empty:
+            return None
+        return self._to_float(window["close"].iloc[-1])
+
+    @classmethod
+    def _predicted_bound(cls, signal: Mapping[str, Any], key: str) -> float | None:
+        """Find a predicted high/low in top-level or Kronos-shaped records."""
+        direct = cls._to_float(signal.get(key))
+        if direct is not None:
+            return direct
+
+        candidate_paths = (
+            ("kronos", key),
+            ("KRONOS", key),
+            ("kronos_prediction", key),
+            ("module_outputs", "KRONOS", key),
+            ("module_outputs", "KRONOS", "raw_components", key),
+            ("module_vector", "KRONOS", key),
+            ("module_vector", "KRONOS", "raw_components", key),
+        )
+        for path in candidate_paths:
+            value: Any = signal
+            for part in path:
+                if not isinstance(value, Mapping):
+                    value = None
+                    break
+                value = value.get(part)
+            parsed = cls._to_float(value)
+            if parsed is not None:
+                return parsed
+        return None
+
     @staticmethod
     def _resolve_report_date(report_date: date | str | None, candles: pd.DataFrame) -> date:
         """Pick report date from input or latest candle."""
@@ -725,11 +867,20 @@ class GreyDailyEfficacyTracker:
     @staticmethod
     def _clamp_unit(value: Any) -> float:
         """Clamp any numeric value into 0.0 to 1.0."""
-        try:
-            numeric = float(value)
-        except (TypeError, ValueError):
+        numeric = GreyDailyEfficacyTracker._to_float(value)
+        if numeric is None:
             return 0.0
         return max(0.0, min(1.0, numeric))
+
+    @staticmethod
+    def _to_float(value: Any) -> float | None:
+        """Safely parse a numeric value."""
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _date_to_text(value: date | str | None) -> str | None:

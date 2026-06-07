@@ -96,28 +96,26 @@ def test_formatting() -> None:
     engine = GreyGeminiReasoningEngine()
     prompt = engine._format_prompt(DUMMY_CONTEXT)
     assert "PRICE DATA" in prompt
-    assert "NEWS & SENTIMENT" in prompt
     assert "OPTIONS POSITIONING" in prompt
     assert "MACRO CONTEXT" in prompt
     assert "MICROSTRUCTURE" in prompt
-    assert "Specific trade recommendation" in prompt
+    assert "Return only JSON" in prompt
     print("\u2713 test_formatting")
 
 
 def test_decision_extraction() -> None:
     engine = GreyGeminiReasoningEngine()
-    assert engine._extract_decision("strong bull setup, buy dips") == "STRONG_BULL"
-    assert engine._extract_decision("mild bear pressure, sell rallies") == "MILD_BEAR"
-    assert engine._extract_decision("risk is high, wait for clarity") == "WAIT_FOR_CLARITY"
-    assert engine._extract_decision("iron condor or strangle can work") == "NEUTRAL_SETUP"
+    assert engine._extract_decision('{"decision":"STRONG_BULL","confidence":0.8,"reasoning":"trend"}') == "STRONG_BULL"
+    assert engine._extract_decision('{"decision":"MILD_BEAR","confidence":0.6,"reasoning":"pressure"}') == "MILD_BEAR"
+    assert engine._extract_decision("strong bull setup, buy dips") == "NEUTRAL"
     print("\u2713 test_decision_extraction")
 
 
 def test_confidence_extraction() -> None:
     engine = GreyGeminiReasoningEngine()
-    assert engine._extract_confidence("clearly strong and likely") == 0.70
-    assert engine._extract_confidence("uncertain, unclear, could fail") == 0.50
-    assert engine._extract_confidence("balanced view") == 0.60
+    assert engine._extract_confidence('{"decision":"NEUTRAL","confidence":0.72,"reasoning":"balanced"}') == 0.72
+    assert engine._extract_confidence('{"decision":"NEUTRAL","confidence":1.5,"reasoning":"clamped"}') == 1.0
+    assert engine._extract_confidence("balanced view") == 0.0
     print("\u2713 test_confidence_extraction")
 
 

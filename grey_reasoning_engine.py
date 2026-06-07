@@ -143,14 +143,13 @@ class GreyReasoningEngine:
         }
 
     def _local_reasoning(self, market_context: Mapping[str, Any], reason: str) -> dict:
+        """Build local reasoning without news or sentiment dependencies."""
         composite = market_context.get("technical_composite", {})
-        sentiment = market_context.get("sentiment", {})
         flow = market_context.get("options_flow", {})
         micro = market_context.get("microstructure", {})
 
         scores = [
             self._packet_score(composite),
-            self._packet_score(sentiment),
             self._packet_score(flow),
             self._packet_score(micro),
         ]
@@ -159,7 +158,7 @@ class GreyReasoningEngine:
         confidence = min(0.70, 0.25 + abs(avg_score) * 0.65)
         summary = (
             f"Local GREY reasoning used because {reason}. "
-            f"Technical, sentiment, flow, and microstructure average score is {avg_score:.2f}; "
+            f"Technical, flow, and microstructure average score is {avg_score:.2f}; "
             f"bias is {direction} with conservative confidence."
         )
         decision = {

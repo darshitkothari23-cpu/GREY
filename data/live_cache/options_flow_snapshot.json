@@ -1,8 +1,8 @@
 {
-  "created_at": 1780738927.1720324,
+  "created_at": 1780825972.1293395,
   "rows": {
     "23500_PE": {
-      "distance_from_spot_pct": null,
+      "distance_from_spot_pct": -0.17,
       "last_traded_qty": 9000.0,
       "lot_size": 75,
       "oi": 200000.0,
@@ -12,7 +12,7 @@
       "volume": 18000.0
     },
     "23700_CE": {
-      "distance_from_spot_pct": null,
+      "distance_from_spot_pct": 0.68,
       "last_traded_qty": 1500.0,
       "lot_size": 75,
       "oi": 120000.0,
@@ -22,5 +22,5 @@
       "volume": 9000.0
     }
   },
-  "updated_at": "2026-06-06T15:12:07.114488"
+  "updated_at": "2026-06-07T15:22:52.093860"
 }

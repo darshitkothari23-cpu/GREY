@@ -2,28 +2,28 @@
 
 GREY is a shadow-mode market intelligence and review system for NSE index options research. It is not a broker, order-entry system, or execution engine.
 
-GREY 1.0 provides the rules-based foundation: 10 analysis modules, signal logging, 15-minute outcome evaluation, Telegram monitoring, and daily efficacy tracking. GREY 2.0 adds real-time news, sentiment, options-flow, microstructure, and AI reasoning layers.
+GREY 1.0 provides the rules-based foundation: 10 analysis modules, signal logging, 15-minute outcome evaluation, Telegram monitoring, and daily efficacy tracking. GREY is now range-bound focused for Iron Condor research: it measures whether actual NIFTY highs and lows stayed inside predicted bounds, not only whether direction was right.
 
-GREY 2.0 now includes Google Gemini reasoning through `gemini-2.0-flash`. Gemini reviews the full market context, looks for contradictions between signals, highlights what may be underpriced, and helps detect smart money positioning versus noisy retail sentiment. It uses short multi-turn conversation context so each cycle can benefit from recent market state without becoming a trading or execution system.
+GREY 2.0 keeps options-flow, microstructure, and optional AI reasoning layers. News aggregation and keyword sentiment are disabled because they were slow, noisy, and usually priced in before processing. Gemini is disabled by default and should be retained only if A/B testing proves more than 5 percentage points of accuracy lift.
 
 ## Requirements
 
 - Python 3.10+
 - Angel One SmartAPI access
 - Telegram bot, free via `@BotFather`
-- Google Gemini API key, free tier is sufficient
+- Google Gemini API key, optional for Week 3 A/B testing
 - Internet connection
 
 ## Key Features
 
 - Phase 1 signal logging during Indian market hours
 - 10 rules-based GREY modules for options, regime, VIX, PCR, expiry, OI, global, macro, sector, and data quality
-- GREY 2.0 news aggregation from market RSS/NSE-style sources
-- Market sentiment aggregation from news and optional social inputs
-- Real-time Gemini AI reasoning with `gemini-2.0-flash`
+- Range-bound accuracy tracking for Iron Condor viability
+- Risk manager with daily loss limits, lot sizing, and 50 percent short-premium stop levels
+- Gemini A/B testing with `gemini-2.0-flash` disabled by default
 - Smart money positioning detection from options flow and OI changes
 - Microstructure analysis from spread, depth, volume imbalance, and large executions
-- Contradiction detection across rules, sentiment, options flow, Gemini, and Claude-style reasoning
+- Contradiction detection across rules, options flow, Gemini, and Claude-style reasoning
 - Multi-turn conversation context for AI reasoning
 - Telegram live monitoring and 15-minute evaluation reports
 - Daily efficacy reports for shadow-mode validation
@@ -38,17 +38,18 @@ GREY 2.0 now includes Google Gemini reasoning through `gemini-2.0-flash`. Gemini
 
 2. Add Angel One credentials and Telegram credentials to `.env`.
 
-3. Get a Gemini API key:
+3. Optional: get a Gemini API key for Week 3 A/B testing.
    - Open `https://ai.google.dev/`
    - Click `Get API key`
    - Create or select a project
    - Copy the key into `.env`
 
-4. Enable Gemini in `.env`.
+4. Keep Gemini off for the baseline shadow-mode run.
 
    ```env
    GOOGLE_GEMINI_API_KEY=your_google_gemini_api_key_here
-   GREY_GEMINI_ENABLED=True
+   GREY_GEMINI_ENABLED=False
+   GREY_A_B_TEST_MODE=True
    ```
 
 5. Run tests.
@@ -69,18 +70,19 @@ GREY 2.0 now includes Google Gemini reasoning through `gemini-2.0-flash`. Gemini
 ## How It Works
 
 1. Every 5 minutes during market hours: GREY fetches live market data, runs rules-based modules, and builds a technical signal.
-2. GREY 2.0 adds news, sentiment, options flow, microstructure, and Gemini reasoning.
+2. GREY 2.0 adds options flow, microstructure, risk controls, and optional Gemini reasoning.
 3. GREY stores the enhanced signal and module vector for later review.
 4. Every 15 minutes: GREY checks whether a past signal was useful and sends a Telegram report.
 5. Every day at 3:30 PM: GREY measures module accuracy and writes a daily efficacy report.
-6. After 4 weeks: review accuracy, latency, Gemini usefulness, and false-confidence behavior before deciding what to do next.
+6. After 4 weeks: review range-bound accuracy, risk decisions, Gemini usefulness, and false-confidence behavior before deciding what to do next.
 
 ## Project Status
 
 - Phase 1 Engine: Complete
 - 10 Modules: Complete
 - GREY 2.0 Data Layer: Complete
-- Gemini AI Integration: Complete
+- Gemini AI Integration: Optional A/B test
+- Risk Manager: Complete
 - Telegram Monitoring: Complete
 - Efficacy Tracking: Complete
 - Live Deployment: Ready for 4-week shadow mode
@@ -88,9 +90,10 @@ GREY 2.0 now includes Google Gemini reasoning through `gemini-2.0-flash`. Gemini
 ## Expected Accuracy
 
 - Current estimate: unknown until shadow-mode data is collected
-- Viable target: 70%+ directional usefulness with controlled false confidence
-- Marginal range: 60-70%, requires deeper review
-- Not viable: below 55%, or if signals are late, noisy, or overconfident
+- Viable target: 70%+ range-bound accuracy for Iron Condors
+- Directional target: 65%+ directional usefulness if directional overlays are considered
+- Marginal range: 60-70% range-bound, requires redesign
+- Not viable: below 55% directional, below 60% range-bound, or if signals are late, noisy, or overconfident
 - Profitability: unknown; GREY must prove usefulness before any paper-trading decision
 
 ## Testing

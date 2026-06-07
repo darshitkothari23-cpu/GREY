@@ -1,8 +1,8 @@
 {
-  "created_at": 1780738927.12151,
+  "created_at": 1780824955.0627246,
   "items": [
     {
-      "collected_at": "2026-06-06T09:42:07.114488+00:00",
+      "collected_at": "2026-06-07T09:35:55.038732+00:00",
       "matched_terms": [
         "banks",
         "financial",
@@ -10,7 +10,7 @@
         "nifty",
         "vix"
       ],
-      "published_at": "2026-06-06T09:42:07.114488+00:00",
+      "published_at": "2026-06-07T09:35:55.038732+00:00",
       "relevance_score": 0.79,
       "source": "dummy-news",
       "summary": "Breadth is supportive while India VIX stays contained.",
@@ -18,13 +18,13 @@
       "url": ""
     },
     {
-      "collected_at": "2026-06-06T09:42:07.114488+00:00",
+      "collected_at": "2026-06-07T09:35:55.038732+00:00",
       "matched_terms": [
         "crude",
         "rbi",
         "rupee"
       ],
-      "published_at": "2026-06-06T09:42:07.114488+00:00",
+      "published_at": "2026-06-07T09:35:55.038732+00:00",
       "relevance_score": 0.34,
       "source": "dummy-news",
       "summary": "Market participants watch rupee, crude, and bond yields.",

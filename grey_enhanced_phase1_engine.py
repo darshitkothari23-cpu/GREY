@@ -20,11 +20,10 @@ from typing import Any, Mapping
 
 from grey_microstructure_analyzer import GreyMicrostructureAnalyzer
 from grey_gemini_reasoning_engine import GreyGeminiReasoningEngine
-from grey_news_aggregator import GreyNewsAggregator
 from grey_options_flow_monitor import GreyOptionsFlowMonitor
 from grey_phase1_engine import GreyPhase1Engine
 from grey_reasoning_engine import GreyReasoningEngine
-from grey_sentiment_engine import GreySentimentEngine
+from grey_risk_manager import GreyRiskManager
 from grey_signal_aggregator import GreySignalAggregator
 
 try:
@@ -34,7 +33,7 @@ except Exception:
 
 
 class GreyEnhancedPhase1Engine:
-    """Combine Phase 1 technical GREY with news, sentiment, AI, flow, and depth."""
+    """Combine Phase 1 technical GREY with AI, flow, depth, and risk controls."""
 
     ENHANCED_AGGREGATOR_CONFIG = {
         "module_weights": {
@@ -95,10 +94,23 @@ class GreyEnhancedPhase1Engine:
         self.data_provider = data_provider
 
         self.phase1 = GreyPhase1Engine()
-        self.news = GreyNewsAggregator(dummy_mode=self.dummy_mode, logger=self.logger)
-        self.sentiment = GreySentimentEngine(dummy_mode=self.dummy_mode, logger=self.logger)
+        self.disable_news = self._env_bool("GREY_DISABLE_NEWS", True)
+        self.disable_sentiment = self._env_bool("GREY_DISABLE_SENTIMENT", True)
+        self.news = None if self.disable_news else self._optional_news_aggregator()
+        self.sentiment = None if self.disable_sentiment else self._optional_sentiment_engine()
         self.reasoning = GreyReasoningEngine(dummy_mode=self.dummy_mode, logger=self.logger)
-        self.use_gemini = os.getenv("GREY_GEMINI_ENABLED", "False").strip().lower() == "true"
+        self.use_gemini = self._env_bool("GREY_GEMINI_ENABLED", False)
+        self.ab_test_mode = self._env_bool("GREY_A_B_TEST_MODE", False)
+        self.risk_manager_enabled = self._env_bool("GREY_RISK_MANAGER_ENABLED", True)
+        self.risk_manager = (
+            GreyRiskManager(
+                account_size=float(os.getenv("GREY_ACCOUNT_SIZE", "100000") or "100000"),
+                max_daily_loss_pct=float(os.getenv("GREY_RISK_MAX_DAILY_LOSS_PCT", "0.02") or "0.02"),
+                logger=self.logger,
+            )
+            if self.risk_manager_enabled
+            else None
+        )
         self.gemini_engine = (
             GreyGeminiReasoningEngine(logger=self.logger)
             if self.use_gemini
@@ -108,6 +120,8 @@ class GreyEnhancedPhase1Engine:
         self.options_flow = GreyOptionsFlowMonitor(dummy_mode=self.dummy_mode, logger=self.logger)
         self.microstructure = GreyMicrostructureAnalyzer(dummy_mode=self.dummy_mode, logger=self.logger)
         self.aggregator = GreySignalAggregator(config=self.ENHANCED_AGGREGATOR_CONFIG)
+        self._cycle_count = 0
+        self._last_heartbeat_at: datetime | None = None
 
     def run_once(
         self,
@@ -121,6 +135,7 @@ class GreyEnhancedPhase1Engine:
     ) -> dict:
         """Run one enhanced intelligence cycle and store the result."""
         cycle_dt = dt or datetime.now()
+        self._cycle_count += 1
         data = market_data or self._load_market_data(symbol)
         data.setdefault("symbol", symbol)
         data.setdefault("timestamp", cycle_dt.isoformat())
@@ -135,8 +150,8 @@ class GreyEnhancedPhase1Engine:
         technical_outputs = self._sanitize_unavailable_module_caps(technical_outputs)
         technical_composite = self.phase1.aggregator.aggregate(technical_outputs, session_state)
 
-        collected_news = news_items if news_items is not None else self.news.collect(max_items=30)
-        sentiment = self.sentiment.analyze(news_items=collected_news, social_items=social_items)
+        collected_news = self._collect_news(news_items)
+        sentiment = self._analyze_sentiment(collected_news, social_items)
         options_flow = self.options_flow.analyze(
             option_rows=option_rows,
             spot_price=self._to_float(data.get("price")),
@@ -150,16 +165,12 @@ class GreyEnhancedPhase1Engine:
             "session_state": session_state,
             "market_data": self._json_safe(data),
             "technical_composite": technical_composite,
-            "news": collected_news[:10],
-            "sentiment": sentiment,
             "options_flow": options_flow,
             "microstructure": microstructure,
         }
         reasoning = self.reasoning.analyze(pre_reasoning_context)
         gemini_context = self._build_gemini_context(
             market_data=data,
-            news_items=collected_news,
-            sentiment=sentiment,
             options_flow=options_flow,
             microstructure=microstructure,
             technical_composite=technical_composite,
@@ -175,20 +186,28 @@ class GreyEnhancedPhase1Engine:
 
         module_outputs = {
             **technical_outputs,
-            "NEWS": news_packet,
-            "SENTIMENT": sentiment,
             "OPTIONS_FLOW": options_flow,
             "MICROSTRUCTURE": microstructure,
             "REASONING": reasoning,
         }
+        if news_packet is not None:
+            module_outputs["NEWS"] = news_packet
+        if not self.disable_sentiment:
+            module_outputs["SENTIMENT"] = sentiment
         if gemini_packet is not None:
             module_outputs["GEMINI"] = gemini_packet
         enhanced_signal = self.aggregator.aggregate(module_outputs, session_state)
         enhanced_signal["reasoning_summary"] = reasoning.get("reasoning_summary", "")
+        enhanced_signal["risk_decision"] = self._risk_decision(enhanced_signal, data)
         enhanced_signal["news_count"] = len(collected_news)
         enhanced_signal["gemini_reasoning"] = gemini_reasoning
         enhanced_signal["claude_reasoning"] = reasoning
         enhanced_signal["gemini_vs_claude"] = reasoning_reconciliation
+        ab_test = self._build_ab_test_result(
+            module_outputs=module_outputs,
+            session_state=session_state,
+            gemini_reasoning=gemini_reasoning,
+        )
 
         result = {
             "timestamp": cycle_dt.isoformat(),
@@ -207,14 +226,16 @@ class GreyEnhancedPhase1Engine:
             "technical_composite": technical_composite,
             "module_outputs": module_outputs,
             "enhanced_signal": enhanced_signal,
+            "ab_test": ab_test,
         }
         self._append_journal(result)
         self.logger.info(
-            "GREY2 cycle complete symbol=%s score=%s direction=%s confidence=%s",
+            "GREY2 cycle complete symbol=%s score=%s direction=%s confidence=%s risk_allowed=%s",
             symbol,
             enhanced_signal.get("composite_score"),
             enhanced_signal.get("direction_bias"),
             enhanced_signal.get("confidence"),
+            enhanced_signal.get("risk_decision", {}).get("should_trade"),
         )
         return result
 
@@ -245,22 +266,16 @@ class GreyEnhancedPhase1Engine:
         self,
         *,
         market_data: Mapping[str, Any],
-        news_items: list[dict],
-        sentiment: Mapping[str, Any],
         options_flow: Mapping[str, Any],
         microstructure: Mapping[str, Any],
         technical_composite: Mapping[str, Any],
     ) -> dict:
         """Flatten GREY context into Gemini's operator-friendly prompt fields."""
-        source_scores = sentiment.get("source_scores", {}) if isinstance(sentiment, Mapping) else {}
         alerts = options_flow.get("alerts", []) if isinstance(options_flow, Mapping) else []
         return {
             "price": market_data.get("price"),
             "atr": market_data.get("atr_14") or market_data.get("atr"),
             "range": market_data.get("range") or market_data.get("intraday_range"),
-            "latest_news": "; ".join(str(item.get("title", "")) for item in news_items[:3]) or "not provided",
-            "twitter_sentiment": source_scores.get("twitter"),
-            "surprise": sentiment.get("surprise") if isinstance(sentiment, Mapping) else None,
             "put_wall": market_data.get("put_wall_weight"),
             "call_wall": market_data.get("call_wall_weight"),
             "pcr": market_data.get("pcr_oi") or market_data.get("pcr"),
@@ -402,6 +417,7 @@ class GreyEnhancedPhase1Engine:
                 if self._is_market_hours(now) or self.dummy_mode:
                     result = self.run_once(symbol=symbol, dt=now)
                     self._print_console_summary(result)
+                    self.send_heartbeat_to_telegram(result=result, dt=now)
                 else:
                     print(f"{now:%H:%M:%S} outside market hours; sleeping.")
                 time.sleep(interval)
@@ -411,7 +427,53 @@ class GreyEnhancedPhase1Engine:
             except Exception as exc:
                 self.logger.exception("GREY2 loop failed safely: %s", exc)
                 print(f"GREY 2.0 cycle skipped safely: {exc}")
+                self.send_heartbeat_to_telegram(error=str(exc), dt=datetime.now())
                 time.sleep(interval)
+
+    def send_heartbeat_to_telegram(
+        self,
+        *,
+        result: Mapping[str, Any] | None = None,
+        error: str | None = None,
+        dt: datetime | None = None,
+    ) -> dict:
+        """Send a throttled 15-minute GREY health heartbeat.
+
+        Args:
+            result: Latest cycle result, used to report degraded data.
+            error: Latest loop error, if one occurred.
+            dt: Current timestamp for throttle checks.
+
+        Returns:
+            Telegram sender result or a skipped marker.
+        """
+        heartbeat_dt = dt or datetime.now()
+        if self._last_heartbeat_at is not None:
+            elapsed = (heartbeat_dt - self._last_heartbeat_at).total_seconds()
+            if elapsed < 15 * 60:
+                return {"sent": False, "skipped": True, "reason": "heartbeat throttle"}
+
+        status = "OK GREY running"
+        if error:
+            status = f"WARNING GREY running but last cycle errored: {error}"
+        elif isinstance(result, Mapping):
+            errors = result.get("market_data", {}).get("data_provider_errors", [])
+            if errors:
+                status = f"WARNING GREY running with degraded data: {', '.join(map(str, errors[:2]))}"
+
+        message = (
+            f"{status} (cycle {self._cycle_count}, memory {self._memory_usage_text()}, "
+            f"news_disabled={self.disable_news}, sentiment_disabled={self.disable_sentiment})"
+        )
+        self._last_heartbeat_at = heartbeat_dt
+        self.logger.info("Heartbeat: %s", message)
+        try:
+            sender = getattr(self.phase1, "live_reporter", None)
+            if sender is not None and hasattr(sender, "_send"):
+                return sender._send(message)
+        except Exception as exc:
+            self.logger.warning("Heartbeat Telegram send failed safely: %s", exc)
+        return {"sent": False, "skipped": True, "message": message}
 
     def _session_context(self, market_data: Mapping[str, Any], dt: datetime) -> tuple[str, bool]:
         event_minutes = self.phase1.calendar.get_next_event_minutes(dt)
@@ -432,6 +494,142 @@ class GreyEnhancedPhase1Engine:
             self.logger.warning("Live market context failed safely: %s", exc)
         return self._dummy_market_data(symbol)
 
+    def _collect_news(self, news_items: list[dict] | None) -> list[dict]:
+        """Return news only when the operator explicitly enables news."""
+        if self.disable_news:
+            self.logger.info("News aggregation disabled by GREY_DISABLE_NEWS")
+            return []
+        if news_items is not None:
+            return list(news_items)
+        if self.news is None:
+            return []
+        try:
+            return list(self.news.collect(max_items=30))
+        except Exception as exc:
+            self.logger.warning("News aggregation failed safely: %s", exc)
+            return []
+
+    def _analyze_sentiment(
+        self,
+        news_items: list[dict],
+        social_items: list[dict] | None,
+    ) -> dict:
+        """Return sentiment only when explicitly enabled."""
+        if self.disable_sentiment:
+            self.logger.info("Sentiment analysis disabled by GREY_DISABLE_SENTIMENT")
+            return {
+                "module_id": "SENTIMENT",
+                "score": 0.0,
+                "direction": "NEUTRAL",
+                "confidence": 0.0,
+                "status": "DISABLED",
+                "top_driver": "sentiment disabled for shadow baseline",
+            }
+        if self.sentiment is None:
+            return {"status": "UNAVAILABLE", "direction": "NEUTRAL", "confidence": 0.0}
+        try:
+            return dict(self.sentiment.analyze(news_items=news_items, social_items=social_items))
+        except Exception as exc:
+            self.logger.warning("Sentiment analysis failed safely: %s", exc)
+            return {"status": "ERROR", "direction": "NEUTRAL", "confidence": 0.0, "error": str(exc)}
+
+    def _risk_decision(self, signal: Mapping[str, Any], market_data: Mapping[str, Any]) -> dict:
+        """Apply risk manager controls to one enhanced signal."""
+        if self.risk_manager is None:
+            return {"enabled": False, "should_trade": True, "reason": "risk manager disabled"}
+        try:
+            allowed = self.risk_manager.should_trade(signal)
+            confidence = self._to_float(signal.get("confidence")) or 0.0
+            decision = {
+                "enabled": True,
+                "should_trade": allowed,
+                "position_lots": self.risk_manager.position_size(confidence) if allowed else 0,
+                "max_daily_loss_amount": round(self.risk_manager.max_daily_loss_amount, 2),
+                "current_daily_loss": round(self.risk_manager.current_daily_loss, 2),
+            }
+            sold_premium = self._to_float(market_data.get("sold_premium"))
+            if sold_premium is not None:
+                decision["iron_condor_stop_loss"] = self.risk_manager.stop_loss_for_iron_condor(sold_premium)
+            self.logger.info("Risk decision: %s", decision)
+            return decision
+        except Exception as exc:
+            self.logger.warning("Risk decision failed safely: %s", exc)
+            return {"enabled": True, "should_trade": False, "error": str(exc)}
+
+    def _build_ab_test_result(
+        self,
+        *,
+        module_outputs: Mapping[str, Any],
+        session_state: str,
+        gemini_reasoning: Mapping[str, Any] | None,
+    ) -> dict:
+        """Log parallel Gemini-on and Gemini-off signal versions."""
+        if not self.ab_test_mode:
+            return {"enabled": False}
+        try:
+            without_gemini_outputs = {
+                module_id: output
+                for module_id, output in module_outputs.items()
+                if str(module_id).upper() != "GEMINI"
+            }
+            version_b = self.aggregator.aggregate(dict(without_gemini_outputs), session_state)
+
+            with_gemini_outputs = dict(without_gemini_outputs)
+            gemini_packet = self._gemini_module_packet(gemini_reasoning)
+            if gemini_packet is None:
+                gemini_packet = self._gemini_module_packet({
+                    "enabled": False,
+                    "decision": "FALLBACK_TO_RULES",
+                    "confidence": 0.0,
+                    "reasoning": "A/B Gemini arm logged; Gemini unavailable or disabled",
+                    "model": "none",
+                    "tokens_estimated": 0,
+                })
+            if gemini_packet is not None:
+                with_gemini_outputs["GEMINI"] = gemini_packet
+            version_a = self.aggregator.aggregate(with_gemini_outputs, session_state)
+
+            return {
+                "enabled": True,
+                "version_A_with_gemini": self._ab_signal_summary(version_a, gemini_enabled=True),
+                "version_B_without_gemini": self._ab_signal_summary(version_b, gemini_enabled=False),
+                "comparison_rule": "Keep Gemini only if version_A accuracy beats version_B by more than 5 percentage points.",
+            }
+        except Exception as exc:
+            self.logger.warning("A/B test logging failed safely: %s", exc)
+            return {"enabled": True, "error": str(exc)}
+
+    @staticmethod
+    def _ab_signal_summary(signal: Mapping[str, Any], *, gemini_enabled: bool) -> dict:
+        """Return compact signal fields for A/B efficacy tracking."""
+        return {
+            "gemini_enabled": gemini_enabled,
+            "direction_bias": signal.get("direction_bias"),
+            "confidence": signal.get("confidence"),
+            "composite_score": signal.get("composite_score"),
+            "module_vector": signal.get("module_vector", {}),
+        }
+
+    def _optional_news_aggregator(self) -> Any | None:
+        """Initialize news only when explicitly enabled."""
+        try:
+            from grey_news_aggregator import GreyNewsAggregator
+
+            return GreyNewsAggregator(dummy_mode=self.dummy_mode, logger=self.logger)
+        except Exception as exc:
+            self.logger.warning("News aggregator initialization failed safely: %s", exc)
+            return None
+
+    def _optional_sentiment_engine(self) -> Any | None:
+        """Initialize sentiment only when explicitly enabled."""
+        try:
+            from grey_sentiment_engine import GreySentimentEngine
+
+            return GreySentimentEngine(dummy_mode=self.dummy_mode, logger=self.logger)
+        except Exception as exc:
+            self.logger.warning("Sentiment initialization failed safely: %s", exc)
+            return None
+
     @staticmethod
     def _sanitize_unavailable_module_caps(module_outputs: Mapping[str, Any]) -> dict:
         """Keep missing support modules from zeroing the whole enhanced signal."""
@@ -451,16 +649,10 @@ class GreyEnhancedPhase1Engine:
         return cleaned
 
     @staticmethod
-    def _news_packet(news_items: list[dict]) -> dict:
+    def _news_packet(news_items: list[dict]) -> dict | None:
+        """Convert collected news into an aggregator packet when news is enabled."""
         if not news_items:
-            return {
-                "module_id": "NEWS",
-                "score": 0.0,
-                "direction": "NEUTRAL",
-                "confidence": 0.0,
-                "status": "INSUFFICIENT_DATA",
-                "top_driver": "no relevant news collected",
-            }
+            return None
         avg_relevance = sum(float(item.get("relevance_score", 0.0)) for item in news_items) / len(news_items)
         confidence = min(0.70, 0.20 + avg_relevance * 0.70)
         return {
@@ -492,6 +684,8 @@ class GreyEnhancedPhase1Engine:
                 "gemini_vs_claude": result.get("gemini_vs_claude"),
                 "options_flow": result.get("options_flow"),
                 "microstructure": result.get("microstructure"),
+                "risk_decision": result.get("enhanced_signal", {}).get("risk_decision"),
+                "ab_test": result.get("ab_test"),
             }
             with self.journal_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, default=str, sort_keys=True) + "\n")
@@ -590,16 +784,36 @@ class GreyEnhancedPhase1Engine:
 
     @staticmethod
     def _to_float(value: Any) -> float | None:
+        """Safely parse a float."""
         if value is None:
             return None
-
-    @staticmethod
-    def _clamp(value: float, lower: float, upper: float) -> float:
-        return max(lower, min(upper, float(value)))
         try:
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _clamp(value: float, lower: float, upper: float) -> float:
+        """Clamp numeric value between lower and upper."""
+        return max(lower, min(upper, float(value)))
+
+    @staticmethod
+    def _env_bool(name: str, default: bool) -> bool:
+        """Read a boolean environment variable with a safe default."""
+        value = os.getenv(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _memory_usage_text() -> str:
+        """Return process memory percentage when psutil is available."""
+        try:
+            import psutil
+
+            return f"{psutil.virtual_memory().percent:.0f}%"
+        except Exception:
+            return "unknown"
 
     @staticmethod
     def _configure_logger() -> logging.Logger:

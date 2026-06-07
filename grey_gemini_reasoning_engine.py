@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Mapping
@@ -47,8 +46,10 @@ class GreyGeminiReasoningEngine:
         "- Identify what market is missing or underpricing\n"
         "- Think through scenarios and risks\n"
         "- Suggest specific strikes and position management\n\n"
-        "Be concise but thorough. Show your reasoning. Don't just classify as BULL/BEAR.\n"
-        "Consider: What would a professional trader do right now?"
+        "Return only JSON with this exact shape:\n"
+        '{"decision":"STRONG_BULL|MILD_BULL|NEUTRAL|MILD_BEAR|STRONG_BEAR",'
+        '"confidence":0.0,"reasoning":"text"}\n'
+        "Be concise but thorough inside reasoning. Consider: What would a professional trader do right now?"
     )
 
     def __init__(
@@ -103,13 +104,14 @@ class GreyGeminiReasoningEngine:
             response_text = self._generate_with_timeout(prompt)
             self._add_history("model", response_text)
             self._trim_conversation()
+            structured = self._parse_structured_response(response_text)
 
             tokens_estimated = self._estimate_tokens(prompt) + self._estimate_tokens(response_text)
             packet = {
                 "enabled": True,
-                "reasoning": response_text,
-                "decision": self._extract_decision(response_text),
-                "confidence": self._extract_confidence(response_text),
+                "reasoning": structured["reasoning"],
+                "decision": structured["decision"],
+                "confidence": structured["confidence"],
                 "model": self.model_name,
                 "tokens_estimated": tokens_estimated,
                 "timestamp": datetime.now().isoformat(),
@@ -152,43 +154,43 @@ class GreyGeminiReasoningEngine:
             f"- Volume profile: {self._pick(data, 'volume_profile')}\n"
             f"- Aggressiveness: {self._pick(data, 'aggressiveness')}\n\n"
             "YOUR ANALYSIS:\n"
-            "1. What's happening in market RIGHT NOW?\n"
-            "2. What contradictions exist (retail vs institutional)?\n"
-            "3. What's not obvious but important?\n"
-            "4. What could break this view?\n"
-            "5. What is market underpricing?\n"
-            "6. Specific trade recommendation (strikes, management)?"
+            "Return only JSON using this schema:\n"
+            '{"decision":"STRONG_BULL|MILD_BULL|NEUTRAL|MILD_BEAR|STRONG_BEAR",'
+            '"confidence":0.0,"reasoning":"short explanation"}'
         )
 
     def _extract_decision(self, reasoning: str) -> str:
-        """Extract the primary actionable decision from Gemini reasoning."""
-        text = str(reasoning or "").lower()
-        if "strong" in text and ("bull" in text or "buy" in text):
-            return "STRONG_BULL"
-        if "bull" in text or "buy" in text:
-            return "MILD_BULL"
-        if "strong" in text and ("bear" in text or "sell" in text):
-            return "STRONG_BEAR"
-        if "bear" in text or "sell" in text:
-            return "MILD_BEAR"
-        if "risk" in text or "caution" in text or "wait" in text:
-            return "WAIT_FOR_CLARITY"
-        if "iron condor" in text or "strangle" in text:
-            return "NEUTRAL_SETUP"
-        return "NEUTRAL"
+        """Extract a decision from structured JSON, with neutral fallback."""
+        return self._parse_structured_response(reasoning)["decision"]
 
     def _extract_confidence(self, reasoning: str) -> float:
-        """Extract a conservative confidence value from response language."""
-        text = str(reasoning or "").lower()
-        high_words = ("clearly", "definitely", "likely", "strong", "obvious", "certain")
-        low_words = ("uncertain", "unclear", "possibly", "might", "could", "maybe")
-        high = sum(text.count(word) for word in high_words)
-        low = sum(text.count(word) for word in low_words)
-        if high > low:
-            return 0.70
-        if low > high:
-            return 0.50
-        return 0.60
+        """Extract confidence from structured JSON, with neutral fallback."""
+        return self._parse_structured_response(reasoning)["confidence"]
+
+    def _parse_structured_response(self, response_text: str) -> dict:
+        """Parse Gemini JSON response into decision, confidence, and reasoning."""
+        text = str(response_text or "").strip()
+        parsed: Mapping[str, Any] = {}
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            start = text.find("{")
+            end = text.rfind("}")
+            if start >= 0 and end > start:
+                try:
+                    parsed = json.loads(text[start:end + 1])
+                except json.JSONDecodeError:
+                    parsed = {}
+
+        decision = str(parsed.get("decision", "NEUTRAL")).upper() if isinstance(parsed, Mapping) else "NEUTRAL"
+        if decision not in {"STRONG_BULL", "MILD_BULL", "NEUTRAL", "MILD_BEAR", "STRONG_BEAR"}:
+            decision = "NEUTRAL"
+
+        confidence = self._clamp_unit(parsed.get("confidence", 0.0) if isinstance(parsed, Mapping) else 0.0)
+        reasoning = str(parsed.get("reasoning", text) if isinstance(parsed, Mapping) else text).strip()
+        if not reasoning:
+            reasoning = "Gemini returned no reasoning text."
+        return {"decision": decision, "confidence": confidence, "reasoning": reasoning}
 
     def _fallback_response(self, reason: str = "Gemini API unavailable or disabled") -> dict:
         """Return a structured response when Gemini cannot be used."""
@@ -313,6 +315,15 @@ class GreyGeminiReasoningEngine:
         if not text:
             return 0
         return max(1, int(len(text) / 4))
+
+    @staticmethod
+    def _clamp_unit(value: Any) -> float:
+        """Clamp a numeric confidence value into 0.0 to 1.0."""
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return max(0.0, min(1.0, numeric))
 
     @staticmethod
     def _pick(data: Mapping[str, Any], *keys: str) -> Any:

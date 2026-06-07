@@ -8,6 +8,7 @@ one simple Telegram-style message per evaluated signal.
 from __future__ import annotations
 
 import json
+import os
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, time, timedelta
@@ -211,6 +212,7 @@ class GreyPhase1Engine:
             dt=signal_dt,
             session_state=session_state,
             composite=composite,
+            module_outputs=module_outputs,
             market_data=market_data,
         )
         self.store.append_signal(signal)
@@ -262,19 +264,24 @@ class GreyPhase1Engine:
         current_market_data: Mapping[str, Any],
         dt: datetime,
     ) -> dict:
-        """Evaluate a stored signal against the 15-minute outcome."""
+        """Evaluate a stored signal against directional and range outcomes."""
         entry_price = self._to_float(signal.get("entry_price"))
         current_price = self._to_float(current_market_data.get("price"))
         if entry_price is None or current_price is None or entry_price <= 0:
             actual_move = 0.0
-            result = "UNKNOWN"
+            directional_outcome = "UNKNOWN"
         else:
             actual_move = (current_price - entry_price) / entry_price
-            result = self._result_label(signal.get("direction_bias"), actual_move)
+            directional_outcome = self._result_label(signal.get("direction_bias"), actual_move)
+
+        range_outcome = self._range_result_label(signal, current_market_data)
+        result = range_outcome if self._range_evaluation_enabled() and range_outcome != "UNKNOWN_RANGE" else directional_outcome
 
         return {
             "evaluated_at": dt.isoformat(),
             "result": result,
+            "directional_outcome": directional_outcome,
+            "range_outcome": range_outcome,
             "actual_move": round(actual_move, 5),
             "current_price": current_price,
             "remark": self._remark(result, signal.get("caution_state", {})),
@@ -402,6 +409,7 @@ class GreyPhase1Engine:
         dt: datetime,
         session_state: str,
         composite: Mapping[str, Any],
+        module_outputs: Mapping[str, Any],
         market_data: Mapping[str, Any],
     ) -> dict:
         return {
@@ -414,6 +422,8 @@ class GreyPhase1Engine:
             "module_vector": composite["module_vector"],
             "composite_score": composite["composite_score"],
             "entry_price": self._to_float(market_data.get("price")),
+            "predicted_high": self._kronos_bound(module_outputs, "predicted_high"),
+            "predicted_low": self._kronos_bound(module_outputs, "predicted_low"),
             "evaluation_due_at": (
                 dt + timedelta(minutes=self.evaluation_delay_minutes)
             ).isoformat(),
@@ -440,6 +450,41 @@ class GreyPhase1Engine:
             return "CORRECT" if actual_move < 0 else "WRONG"
         return "NEUTRAL_REVIEW"
 
+    @classmethod
+    def _range_result_label(
+        cls,
+        signal: Mapping[str, Any],
+        current_market_data: Mapping[str, Any],
+    ) -> str:
+        """Return CORRECT_RANGE when actual high/low fit predicted bounds."""
+        predicted_high = cls._to_float(signal.get("predicted_high"))
+        predicted_low = cls._to_float(signal.get("predicted_low"))
+        actual_high = cls._to_float(current_market_data.get("high") or current_market_data.get("actual_high"))
+        actual_low = cls._to_float(current_market_data.get("low") or current_market_data.get("actual_low"))
+        if None in (predicted_high, predicted_low, actual_high, actual_low):
+            return "UNKNOWN_RANGE"
+        if actual_high <= predicted_high and actual_low >= predicted_low:
+            return "CORRECT_RANGE"
+        return "WRONG_RANGE"
+
+    @staticmethod
+    def _range_evaluation_enabled() -> bool:
+        """Return True when range-bound evaluation should drive result labels."""
+        return os.getenv("GREY_USE_RANGE_BOUND_EVALUATION", "False").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+    @staticmethod
+    def _kronos_bound(composite: Mapping[str, Any], key: str) -> float | None:
+        """Extract Kronos predicted high/low from raw module outputs."""
+        kronos = composite.get("KRONOS", {}) if isinstance(composite, Mapping) else {}
+        if isinstance(kronos, Mapping):
+            return GreyPhase1Engine._to_float(kronos.get(key))
+        return None
+
     @staticmethod
     def _remark(result: str, caution_state: Mapping[str, Any]) -> str:
         if caution_state.get("level") == "FREEZE":
@@ -448,6 +493,10 @@ class GreyPhase1Engine:
             return "Signal matched the 15-minute move."
         if result == "WRONG":
             return "Signal did not match the 15-minute move."
+        if result == "CORRECT_RANGE":
+            return "Actual high/low stayed inside the predicted range."
+        if result == "WRONG_RANGE":
+            return "Actual high/low broke the predicted range."
         if result == "NEUTRAL_REVIEW":
             return "Neutral signal; movement noted for review."
         return "Outcome could not be evaluated from available data."
