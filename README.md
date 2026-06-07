@@ -6,6 +6,8 @@ GREY 1.0 provides the rules-based foundation: 10 analysis modules, signal loggin
 
 GREY 2.0 keeps options-flow, microstructure, and optional AI reasoning layers. News aggregation and keyword sentiment are disabled because they were slow, noisy, and usually priced in before processing. Gemini is disabled by default and should be retained only if A/B testing proves more than 5 percentage points of accuracy lift.
 
+GREY now tracks Expected Value (EV) after costs. Accuracy is not enough; profit after slippage, brokerage, and STT is what matters.
+
 ## Requirements
 
 - Python 3.10+
@@ -19,8 +21,13 @@ GREY 2.0 keeps options-flow, microstructure, and optional AI reasoning layers. N
 - Phase 1 signal logging during Indian market hours
 - 10 rules-based GREY modules for options, regime, VIX, PCR, expiry, OI, global, macro, sector, and data quality
 - Range-bound accuracy tracking for Iron Condor viability
-- Risk manager with daily loss limits, lot sizing, and 50 percent short-premium stop levels
+- Risk manager with daily loss limits, VIX-scaled lot sizing, and time-weighted short-premium stop levels
 - Gemini A/B testing with `gemini-2.0-flash` disabled by default
+- Expected Value tracking after costs
+- Dynamic VIX caching: 60 seconds normally, 20 seconds when VIX is above 20
+- Time-weighted stops: 50 percent first 30 minutes, 75 percent mid-trade, 100 percent late-trade
+- Position sizing with volatility scaling: high VIX means smaller positions, low VIX allows larger positions
+- Mandatory pre-shadow-mode backtest on 3 months historical NIFTY 1-minute data
 - Smart money positioning detection from options flow and OI changes
 - Microstructure analysis from spread, depth, volume imbalance, and large executions
 - Contradiction detection across rules, options flow, Gemini, and Claude-style reasoning
@@ -55,13 +62,20 @@ GREY 2.0 keeps options-flow, microstructure, and optional AI reasoning layers. N
 5. Run tests.
 
    ```bash
+   python -m pytest test_pre_shadow_mode.py
    python test_new_modules.py
    python test_live_data_providers.py
    python test_telegram_live_reporter.py
    python test_gemini_integration.py
    ```
 
-6. Start GREY 2.0 shadow mode.
+6. Run the mandatory pre-shadow backtest before shadow mode.
+
+   ```bash
+   python grey_backtest_runner.py --data data/nifty_3months.csv
+   ```
+
+7. Start GREY 2.0 shadow mode only after the backtest and checklist pass.
 
    ```bash
    python grey_enhanced_phase1_engine.py
@@ -70,11 +84,24 @@ GREY 2.0 keeps options-flow, microstructure, and optional AI reasoning layers. N
 ## How It Works
 
 1. Every 5 minutes during market hours: GREY fetches live market data, runs rules-based modules, and builds a technical signal.
-2. GREY 2.0 adds options flow, microstructure, risk controls, and optional Gemini reasoning.
+2. GREY 2.0 adds options flow, microstructure, risk controls, EV tracking, and optional Gemini reasoning.
 3. GREY stores the enhanced signal and module vector for later review.
-4. Every 15 minutes: GREY checks whether a past signal was useful and sends a Telegram report.
-5. Every day at 3:30 PM: GREY measures module accuracy and writes a daily efficacy report.
-6. After 4 weeks: review range-bound accuracy, risk decisions, Gemini usefulness, and false-confidence behavior before deciding what to do next.
+4. Parallel A/B testing logs baseline and Gemini variants on the same market tick for fair comparison.
+5. Every 15 minutes: GREY checks whether a past signal was useful and sends a Telegram report.
+6. Every day at 3:30 PM: GREY measures accuracy, EV, range-bound fit, ATR-adjusted range fit, and A/B lift.
+7. After 4 weeks: review range-bound accuracy, EV, risk decisions, Gemini usefulness, and false-confidence behavior before deciding what to do next.
+
+## Mandatory Pre-Shadow Backtest
+
+Pre-shadow-mode backtesting is mandatory. Run GREY on 3 months of NIFTY 1-minute historical data before Monday 9:15 AM shadow mode. Do not skip this step. If simulated EV is negative, shadow mode will likely confirm that the system has no usable edge. If simulated EV is positive, shadow mode has a chance, but it is still not proof.
+
+## Parallel A/B Testing
+
+Gemini is tested fairly against baseline on identical market conditions. Every signal logs baseline direction, confidence, and score, plus Gemini direction, confidence, and score. End-of-shadow analysis should compare exact same-tick outcomes, not Week 1 versus Week 3 market regimes.
+
+## Expected Outcome
+
+Expected shadow-mode outcome: 75 percent chance GREY shows negative or marginal EV and does not work, 25 percent chance it is viable enough for further paper-trading review. This system is a hypothesis, not a guarantee.
 
 ## Project Status
 

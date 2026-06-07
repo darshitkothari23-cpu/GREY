@@ -57,14 +57,15 @@ class GreyRiskManager:
         )
         return allowed
 
-    def position_size(self, signal_confidence: float) -> int:
-        """Return lots allowed by confidence and account-size scale.
+    def position_size(self, signal_confidence: float, vix_level: float) -> float:
+        """Return lots allowed by confidence, account size, and VIX scaling.
 
         Args:
             signal_confidence: Signal confidence from 0.0 to 1.0.
+            vix_level: Current India VIX. Higher VIX reduces lot size.
 
         Returns:
-            Lot count: 1, 2, or 3 lots per 100,000 rupees of account size.
+            Scaled lot count rounded to two decimals.
         """
         confidence = self._clamp_unit(signal_confidence)
         if confidence < 0.60:
@@ -75,33 +76,51 @@ class GreyRiskManager:
             base_lots = 3
 
         account_units = max(1, int(self.account_size // 100_000)) if self.account_size else 1
-        lots = max(1, base_lots * account_units)
+        safe_vix = max(1.0, float(vix_level or 20.0))
+        vix_scaled_lots = base_lots * account_units * (20.0 / safe_vix)
+        lots = round(max(0.01, vix_scaled_lots), 2)
         self.logger.info(
-            "Risk position_size confidence=%.3f base_lots=%s account_units=%s lots=%s",
+            "Risk position_size confidence=%.3f vix=%.2f base_lots=%s account_units=%s lots=%.2f",
             confidence,
+            safe_vix,
             base_lots,
             account_units,
             lots,
         )
         return lots
 
-    def stop_loss_for_iron_condor(self, sold_premium: float) -> float:
-        """Return exit premium for a 50 percent short-premium loss.
+    def stop_loss_for_iron_condor(self, sold_premium: float, time_in_trade_minutes: int | float) -> float:
+        """Return time-weighted short-premium stop price.
 
         Args:
             sold_premium: Premium collected for the sold option structure.
+            time_in_trade_minutes: Minutes elapsed since entry.
 
         Returns:
-            Premium at which to exit. Example: 100 collected exits at 150.
+            Premium at which to exit. Example: 100 exits at 150, 175, or 200.
         """
         premium = max(0.0, float(sold_premium or 0.0))
-        stop_price = round(premium * 1.50, 2)
+        minutes = max(0.0, float(time_in_trade_minutes or 0.0))
+        stop_loss_pct = self.stop_loss_pct_for_minutes(minutes)
+        stop_price = round(premium * (1.0 + stop_loss_pct), 2)
         self.logger.info(
-            "Risk stop_loss_for_iron_condor sold_premium=%.2f stop_price=%.2f",
+            "Risk stop_loss_for_iron_condor sold_premium=%.2f minutes=%.1f stop_pct=%.2f stop_price=%.2f",
             premium,
+            minutes,
+            stop_loss_pct,
             stop_price,
         )
         return stop_price
+
+    @staticmethod
+    def stop_loss_pct_for_minutes(time_in_trade_minutes: int | float) -> float:
+        """Return 0.50, 0.75, or 1.00 stop percentage by time in trade."""
+        minutes = max(0.0, float(time_in_trade_minutes or 0.0))
+        if minutes < 30:
+            return 0.50
+        if minutes < 120:
+            return 0.75
+        return 1.00
 
     def record_trade_result(self, pnl: float) -> None:
         """Add a realized trade result to daily PnL tracking.

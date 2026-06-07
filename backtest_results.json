@@ -1,0 +1,14 @@
+{
+  "accuracy_pct": 60.0,
+  "avg_loss_rupees": 3460.0,
+  "avg_win_rupees": 2540.0,
+  "ev_simulated": -170.0,
+  "losing_trades": 2,
+  "loss_pct": 40.0,
+  "max_drawdown_pct": 988.57,
+  "max_drawdown_rupees": 6920.0,
+  "profitable_trades": 3,
+  "sharpe_ratio": 0.095,
+  "total_trades": 5,
+  "win_pct": 60.0
+}

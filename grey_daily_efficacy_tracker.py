@@ -8,11 +8,15 @@ intraday market moves before those moves happened.
 from __future__ import annotations
 
 import json
+import math
+import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 import pandas as pd
+
+from grey_ev_calculator import GreyEVCalculator
 
 
 class GreyDailyEfficacyTracker:
@@ -74,8 +78,9 @@ class GreyDailyEfficacyTracker:
 
             # Build a plain-English summary and insight section.
             summary = self._summary(evaluated_moves)
-            summary["directional_accuracy"] = self.calculate_directional_accuracy(raw_signals, day_candles)
-            summary["range_bound_accuracy"] = self.calculate_range_bound_accuracy(raw_signals, day_candles)
+            summary.update(self._comprehensive_metrics(raw_signals, day_candles))
+            ab_test_results = self.calculate_ab_test_results(raw_signals)
+            market_conditions = self._market_conditions(raw_signals, day_candles)
             insights = self._daily_insights(summary, scorecard)
 
             # Return a dashboard- and JSON-friendly report structure.
@@ -86,6 +91,9 @@ class GreyDailyEfficacyTracker:
                 "summary": summary,
                 "market_moves": evaluated_moves,
                 "module_performance_scorecard": scorecard,
+                "module_performance": scorecard,
+                "ab_test_results": ab_test_results,
+                "market_conditions": market_conditions,
                 "daily_insights": insights,
             }
         except Exception as exc:
@@ -101,10 +109,17 @@ class GreyDailyEfficacyTracker:
                     "efficacy_score": 0.0,
                     "directional_accuracy": 0.0,
                     "range_bound_accuracy": 0.0,
+                    "directional_accuracy_pct": 0.0,
+                    "range_bound_accuracy_pct": 0.0,
+                    "atr_adjusted_range_accuracy_pct": 0.0,
+                    "simulated_ev_after_costs": 0.0,
                     "remark": f"Daily efficacy report failed safely: {exc}",
                 },
                 "market_moves": [],
                 "module_performance_scorecard": {},
+                "module_performance": {},
+                "ab_test_results": {},
+                "market_conditions": {},
                 "daily_insights": {
                     "best_performing_module": None,
                     "worst_performing_module": None,
@@ -288,6 +303,66 @@ class GreyDailyEfficacyTracker:
         except Exception:
             return 0.0
 
+    def calculate_atr_adjusted_range_accuracy(
+        self,
+        signals: Iterable[Mapping[str, Any]],
+        ohlcv_data: str | Path | pd.DataFrame,
+        *,
+        atr_multiplier: float = 1.5,
+    ) -> float:
+        """Measure whether actual range fit inside open +/- ATR-adjusted bounds."""
+        try:
+            candles = self._with_atr_14(self.load_ohlcv(ohlcv_data))
+            total = 0
+            correct = 0
+            for signal in signals:
+                start_dt = self._parse_dt(signal.get("timestamp"))
+                if start_dt is None:
+                    continue
+                window = self._signal_candle_window(signal, candles, start_dt)
+                if window.empty:
+                    continue
+                first = window.iloc[0]
+                open_price = self._to_float(first.get("open"))
+                atr_14 = self._to_float(first.get("atr_14"))
+                if open_price is None or atr_14 is None or atr_14 <= 0:
+                    continue
+                dynamic_high = open_price + (float(atr_multiplier) * atr_14)
+                dynamic_low = open_price - (float(atr_multiplier) * atr_14)
+                total += 1
+                if float(window["high"].max()) <= dynamic_high and float(window["low"].min()) >= dynamic_low:
+                    correct += 1
+            return round((correct / total) * 100.0, 2) if total else 0.0
+        except Exception:
+            return 0.0
+
+    def calculate_ab_test_results(self, signals: Iterable[Mapping[str, Any]]) -> dict:
+        """Calculate baseline and Gemini A/B accuracy from signal records."""
+        baseline_total = baseline_correct = 0
+        gemini_total = gemini_correct = 0
+        for signal in signals:
+            ab = signal.get("parallel_ab_test") or signal.get("ab_test") or {}
+            if not isinstance(ab, Mapping):
+                continue
+            baseline_flag = ab.get("baseline_correct")
+            gemini_flag = ab.get("gemini_correct")
+            if baseline_flag is not None:
+                baseline_total += 1
+                baseline_correct += 1 if bool(baseline_flag) else 0
+            if gemini_flag is not None:
+                gemini_total += 1
+                gemini_correct += 1 if bool(gemini_flag) else 0
+
+        baseline_accuracy = round((baseline_correct / baseline_total) * 100.0, 2) if baseline_total else 0.0
+        gemini_accuracy = round((gemini_correct / gemini_total) * 100.0, 2) if gemini_total else 0.0
+        return {
+            "baseline_accuracy_pct": baseline_accuracy,
+            "gemini_accuracy_pct": gemini_accuracy,
+            "gemini_accuracy_lift_pct": round(gemini_accuracy - baseline_accuracy, 2),
+            "baseline_samples": baseline_total,
+            "gemini_samples": gemini_total,
+        }
+
     def identify_market_moves(self, candles: pd.DataFrame) -> list[dict]:
         """Detect rallies, crashes, reversals, breakouts, and consolidation exits."""
         try:
@@ -434,6 +509,8 @@ class GreyDailyEfficacyTracker:
             f"System efficacy: {summary.get('efficacy_score', 0.0)}/10",
             f"Directional accuracy: {summary.get('directional_accuracy', 0.0)}%",
             f"Range-bound accuracy: {summary.get('range_bound_accuracy', 0.0)}%",
+            f"ATR-adjusted range accuracy: {summary.get('atr_adjusted_range_accuracy_pct', 0.0)}%",
+            f"Simulated EV after costs: Rs {summary.get('simulated_ev_after_costs', 0.0)}",
             f"Remark: {summary.get('remark', '')}",
             "",
             "Market Moves:",
@@ -628,6 +705,125 @@ class GreyDailyEfficacyTracker:
             "efficacy_score": round(efficacy, 2),
             "remark": f"System gave warnings for {warned}/{total} major moves" if total else "No major moves identified.",
         }
+
+    def _comprehensive_metrics(
+        self,
+        raw_signals: Iterable[Mapping[str, Any]],
+        day_candles: pd.DataFrame,
+    ) -> dict:
+        """Build all pre-shadow-mode daily efficacy metrics."""
+        signals = [dict(signal) for signal in raw_signals]
+        directional = self.calculate_directional_accuracy(signals, day_candles)
+        kronos_range = self.calculate_range_bound_accuracy(signals, day_candles)
+        atr_range = self.calculate_atr_adjusted_range_accuracy(signals, day_candles)
+        trade_stats = self._trade_stats(signals)
+        ab = self.calculate_ab_test_results(signals)
+        win_pct_unit = trade_stats["win_pct"] / 100.0 if trade_stats["total_signals"] else self._env_float("GREY_EXPECTED_WIN_PCT", 0.58)
+        avg_profit = trade_stats["avg_profit_per_win_rupees"] or self._env_float("GREY_EXPECTED_PROFIT_PER_TRADE", 2850.0)
+        avg_loss = trade_stats["avg_loss_per_loss_rupees"] or self._env_float("GREY_EXPECTED_LOSS_PER_TRADE", 3150.0)
+        ev = GreyEVCalculator().calculate_ev(win_pct_unit, avg_profit, avg_loss)
+        return {
+            "directional_accuracy": directional,
+            "range_bound_accuracy": kronos_range,
+            "directional_accuracy_pct": directional,
+            "range_bound_accuracy_pct": kronos_range,
+            "kronos_range_accuracy_pct": kronos_range,
+            "atr_adjusted_range_accuracy_pct": atr_range,
+            "simulated_ev_after_costs": ev,
+            "baseline_accuracy_pct": ab["baseline_accuracy_pct"],
+            "gemini_accuracy_pct": ab["gemini_accuracy_pct"],
+            "gemini_accuracy_lift_pct": ab["gemini_accuracy_lift_pct"],
+            **trade_stats,
+        }
+
+    def _trade_stats(self, signals: list[Mapping[str, Any]]) -> dict:
+        """Calculate win/loss, drawdown, and Sharpe-style stats from signal PnL."""
+        pnls: list[float] = []
+        for signal in signals:
+            pnl = self._to_float(signal.get("pnl") or signal.get("realized_pnl") or signal.get("simulated_pnl"))
+            if pnl is not None:
+                pnls.append(pnl)
+        wins = [pnl for pnl in pnls if pnl > 0]
+        losses = [pnl for pnl in pnls if pnl <= 0]
+        total = len(pnls)
+        win_pct = round((len(wins) / total) * 100.0, 2) if total else 0.0
+        loss_pct = round((len(losses) / total) * 100.0, 2) if total else 0.0
+        avg_profit = round(sum(wins) / len(wins), 2) if wins else 0.0
+        avg_loss = round(abs(sum(losses) / len(losses)), 2) if losses else 0.0
+        equity = []
+        running = 0.0
+        for pnl in pnls:
+            running += pnl
+            equity.append(running)
+        max_dd = self._max_drawdown(equity)
+        return {
+            "win_pct": win_pct,
+            "loss_pct": loss_pct,
+            "avg_profit_per_win_rupees": avg_profit,
+            "avg_loss_per_loss_rupees": avg_loss,
+            "win_loss_ratio": round((avg_profit / avg_loss), 3) if avg_loss else 0.0,
+            "max_drawdown_today_rupees": round(max_dd["rupees"], 2),
+            "max_drawdown_today_pct": round(max_dd["pct"], 2),
+            "sharpe_ratio_today": round(self._sharpe_ratio(pnls), 3),
+            "profitable_signals_count": len(wins),
+            "losing_signals_count": len(losses),
+            "total_signals": total,
+        }
+
+    def _market_conditions(self, signals: list[Mapping[str, Any]], candles: pd.DataFrame) -> dict:
+        """Build a compact market-condition packet for the report."""
+        latest_signal = signals[-1] if signals else {}
+        return {
+            "india_vix": latest_signal.get("india_vix") or latest_signal.get("vix"),
+            "session": latest_signal.get("session_state"),
+            "conditions": latest_signal.get("market_conditions") or "not_recorded",
+            "candles_evaluated": int(len(candles)),
+        }
+
+    @staticmethod
+    def _with_atr_14(candles: pd.DataFrame) -> pd.DataFrame:
+        """Add a 14-period true-range average column to candle data."""
+        df = candles.copy().sort_values("timestamp").reset_index(drop=True)
+        previous_close = df["close"].shift(1)
+        true_range = pd.concat(
+            [
+                df["high"] - df["low"],
+                (df["high"] - previous_close).abs(),
+                (df["low"] - previous_close).abs(),
+            ],
+            axis=1,
+        ).max(axis=1)
+        df["atr_14"] = true_range.rolling(window=14, min_periods=1).mean()
+        return df
+
+    @staticmethod
+    def _max_drawdown(equity: list[float]) -> dict:
+        """Return max drawdown from an equity list."""
+        peak = 0.0
+        max_dd = 0.0
+        for value in equity:
+            peak = max(peak, value)
+            max_dd = max(max_dd, peak - value)
+        pct = (max_dd / peak * 100.0) if peak > 0 else 0.0
+        return {"rupees": max_dd, "pct": pct}
+
+    @staticmethod
+    def _sharpe_ratio(pnls: list[float]) -> float:
+        """Return simple daily trade-level Sharpe ratio."""
+        if len(pnls) < 2:
+            return 0.0
+        mean = sum(pnls) / len(pnls)
+        variance = sum((pnl - mean) ** 2 for pnl in pnls) / (len(pnls) - 1)
+        std = math.sqrt(variance)
+        return 0.0 if std == 0 else (mean / std) * math.sqrt(len(pnls))
+
+    @staticmethod
+    def _env_float(name: str, default: float) -> float:
+        """Read a float env setting safely."""
+        try:
+            return float(os.getenv(name, str(default)) or default)
+        except (TypeError, ValueError):
+            return default
 
     def _daily_insights(self, summary: Mapping[str, Any], scorecard: Mapping[str, Any]) -> dict:
         """Build plain-English daily insights."""

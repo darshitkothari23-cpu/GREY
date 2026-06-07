@@ -8,6 +8,7 @@ and falls back safely when the website blocks or fails.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import urllib.error
@@ -35,8 +36,11 @@ class GreyVixDataProvider:
         # Store cache on disk so GREY survives transient NSE failures.
         self.cache_path = Path(cache_path)
 
-        # Default cache TTL is 5 minutes to avoid scraping every minute.
-        self.cache_seconds = int(cache_seconds or os.getenv("GREY_VIX_CACHE_SECONDS", "300"))
+        # Default cache TTL is 60 seconds; high volatility uses a shorter TTL.
+        self.cache_seconds = int(cache_seconds or os.getenv("GREY_VIX_CACHE_SECONDS", "60"))
+        self.high_vol_threshold = float(os.getenv("GREY_VIX_HIGH_VOL_THRESHOLD", "20") or "20")
+        self.high_vol_cache_seconds = int(os.getenv("GREY_VIX_HIGH_VOL_CACHE_SECONDS", "20") or "20")
+        self.logger = logging.getLogger(__name__)
 
         # Keep NSE requests short so live GREY does not hang.
         self.timeout_seconds = timeout_seconds
@@ -63,6 +67,13 @@ class GreyVixDataProvider:
             if disk and self._is_fresh(disk) and not force_refresh:
                 self._memory_cache = disk
                 return self._with_source(disk, "disk_cache")
+
+            if disk and not self._is_fresh(disk):
+                self.logger.info(
+                    "Refreshing VIX cache source=disk vix=%s dynamic_ttl=%s",
+                    disk.get("india_vix"),
+                    self.dynamic_cache_seconds(disk),
+                )
 
             # Fetch live NSE data when no fresh cache is available.
             fetched_payload = self.fetcher() if self.fetcher else self._fetch_from_nse()
@@ -157,6 +168,11 @@ class GreyVixDataProvider:
             return None
         if self._is_fresh(self._memory_cache):
             return dict(self._memory_cache)
+        self.logger.info(
+            "Refreshing VIX cache source=memory vix=%s dynamic_ttl=%s",
+            self._memory_cache.get("india_vix"),
+            self.dynamic_cache_seconds(self._memory_cache),
+        )
         return None
 
     def _read_cache(self) -> dict | None:
@@ -178,11 +194,34 @@ class GreyVixDataProvider:
             return
 
     def _is_fresh(self, data: Mapping[str, Any]) -> bool:
-        """Return True when cache timestamp is inside TTL."""
-        as_of = self._parse_dt(data.get("as_of"))
+        """Return True when cache timestamp is inside dynamic TTL."""
+        return not self.is_vix_data_stale(data, threshold_seconds=self.dynamic_cache_seconds(data))
+
+    def dynamic_cache_seconds(self, data_or_vix: Mapping[str, Any] | float | int | None) -> int:
+        """Return 20 seconds for high VIX and 60 seconds for normal VIX."""
+        if isinstance(data_or_vix, Mapping):
+            vix_level = self._to_float(data_or_vix.get("india_vix"))
+        else:
+            vix_level = self._to_float(data_or_vix)
+        if vix_level is not None and vix_level >= self.high_vol_threshold:
+            return self.high_vol_cache_seconds
+        return self.cache_seconds
+
+    def is_vix_data_stale(
+        self,
+        data: Mapping[str, Any] | None = None,
+        *,
+        threshold_seconds: int | None = None,
+    ) -> bool:
+        """Return True when cached VIX age exceeds the supplied or dynamic TTL."""
+        packet = data or self._memory_cache or self._read_cache()
+        if not packet:
+            return True
+        as_of = self._parse_dt(packet.get("as_of"))
         if as_of is None:
-            return False
-        return (time.time() - as_of.timestamp()) <= self.cache_seconds
+            return True
+        threshold = int(threshold_seconds or self.dynamic_cache_seconds(packet))
+        return (time.time() - as_of.timestamp()) > threshold
 
     def _env_fallback(self, error: str) -> dict | None:
         """Return static fallback values from .env when configured."""

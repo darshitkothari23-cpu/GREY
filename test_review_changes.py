@@ -55,10 +55,10 @@ def test_risk_manager_position_sizing() -> None:
     small_account = GreyRiskManager(account_size=100_000)
     large_account = GreyRiskManager(account_size=350_000)
 
-    assert small_account.position_size(0.55) == 1
-    assert small_account.position_size(0.65) == 2
-    assert small_account.position_size(0.80) == 3
-    assert large_account.position_size(0.80) == 9
+    assert small_account.position_size(0.55, 20) == 1
+    assert small_account.position_size(0.65, 20) == 2
+    assert small_account.position_size(0.80, 20) == 3
+    assert large_account.position_size(0.80, 20) == 9
 
 
 def test_risk_manager_stop_loss() -> None:
@@ -67,7 +67,7 @@ def test_risk_manager_stop_loss() -> None:
 
     manager = GreyRiskManager(account_size=100_000)
 
-    assert manager.stop_loss_for_iron_condor(100.0) == 150.0
+    assert manager.stop_loss_for_iron_condor(100.0, 15) == 150.0
     assert manager.should_trade({"confidence": 0.7}) is True
     manager.record_trade_result(-2_500.0)
     assert manager.should_trade({"confidence": 0.7}) is False

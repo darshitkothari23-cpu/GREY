@@ -100,7 +100,7 @@ class GreyEnhancedPhase1Engine:
         self.sentiment = None if self.disable_sentiment else self._optional_sentiment_engine()
         self.reasoning = GreyReasoningEngine(dummy_mode=self.dummy_mode, logger=self.logger)
         self.use_gemini = self._env_bool("GREY_GEMINI_ENABLED", False)
-        self.ab_test_mode = self._env_bool("GREY_A_B_TEST_MODE", False)
+        self.ab_test_mode = self._env_bool("GREY_PARALLEL_AB_TEST", self._env_bool("GREY_A_B_TEST_MODE", False))
         self.risk_manager_enabled = self._env_bool("GREY_RISK_MANAGER_ENABLED", True)
         self.risk_manager = (
             GreyRiskManager(
@@ -122,6 +122,7 @@ class GreyEnhancedPhase1Engine:
         self.aggregator = GreySignalAggregator(config=self.ENHANCED_AGGREGATOR_CONFIG)
         self._cycle_count = 0
         self._last_heartbeat_at: datetime | None = None
+        self.heartbeat_frequency_seconds = int(os.getenv("GREY_HEARTBEAT_FREQUENCY_SECONDS", "1800") or "1800")
 
     def run_once(
         self,
@@ -198,12 +199,18 @@ class GreyEnhancedPhase1Engine:
             module_outputs["GEMINI"] = gemini_packet
         enhanced_signal = self.aggregator.aggregate(module_outputs, session_state)
         enhanced_signal["reasoning_summary"] = reasoning.get("reasoning_summary", "")
+        enhanced_signal["trade_entry_time"] = data.get("trade_entry_time") or cycle_dt.isoformat()
         enhanced_signal["risk_decision"] = self._risk_decision(enhanced_signal, data)
         enhanced_signal["news_count"] = len(collected_news)
         enhanced_signal["gemini_reasoning"] = gemini_reasoning
         enhanced_signal["claude_reasoning"] = reasoning
         enhanced_signal["gemini_vs_claude"] = reasoning_reconciliation
         ab_test = self._build_ab_test_result(
+            module_outputs=module_outputs,
+            session_state=session_state,
+            gemini_reasoning=gemini_reasoning,
+        )
+        parallel_ab_test = self._build_parallel_ab_test_result(
             module_outputs=module_outputs,
             session_state=session_state,
             gemini_reasoning=gemini_reasoning,
@@ -227,6 +234,16 @@ class GreyEnhancedPhase1Engine:
             "module_outputs": module_outputs,
             "enhanced_signal": enhanced_signal,
             "ab_test": ab_test,
+            "parallel_ab_test": parallel_ab_test,
+            "baseline_direction": parallel_ab_test.get("baseline_direction"),
+            "baseline_confidence": parallel_ab_test.get("baseline_confidence"),
+            "baseline_score": parallel_ab_test.get("baseline_score"),
+            "gemini_direction": parallel_ab_test.get("gemini_direction"),
+            "gemini_confidence": parallel_ab_test.get("gemini_confidence"),
+            "gemini_score": parallel_ab_test.get("gemini_score"),
+            "both_correct": parallel_ab_test.get("both_correct"),
+            "baseline_only_correct": parallel_ab_test.get("baseline_only_correct"),
+            "gemini_only_correct": parallel_ab_test.get("gemini_only_correct"),
         }
         self._append_journal(result)
         self.logger.info(
@@ -450,7 +467,7 @@ class GreyEnhancedPhase1Engine:
         heartbeat_dt = dt or datetime.now()
         if self._last_heartbeat_at is not None:
             elapsed = (heartbeat_dt - self._last_heartbeat_at).total_seconds()
-            if elapsed < 15 * 60:
+            if elapsed < self.heartbeat_frequency_seconds:
                 return {"sent": False, "skipped": True, "reason": "heartbeat throttle"}
 
         status = "OK GREY running"
@@ -540,16 +557,24 @@ class GreyEnhancedPhase1Engine:
         try:
             allowed = self.risk_manager.should_trade(signal)
             confidence = self._to_float(signal.get("confidence")) or 0.0
+            vix_level = (
+                self._to_float(market_data.get("india_vix"))
+                or self._to_float(market_data.get("vix"))
+                or 20.0
+            )
             decision = {
                 "enabled": True,
                 "should_trade": allowed,
-                "position_lots": self.risk_manager.position_size(confidence) if allowed else 0,
+                "position_lots": self.risk_manager.position_size(confidence, vix_level) if allowed else 0,
+                "vix_level": round(vix_level, 2),
                 "max_daily_loss_amount": round(self.risk_manager.max_daily_loss_amount, 2),
                 "current_daily_loss": round(self.risk_manager.current_daily_loss, 2),
             }
             sold_premium = self._to_float(market_data.get("sold_premium"))
             if sold_premium is not None:
-                decision["iron_condor_stop_loss"] = self.risk_manager.stop_loss_for_iron_condor(sold_premium)
+                elapsed = self._time_in_trade_minutes(signal, market_data)
+                decision["time_in_trade_minutes"] = elapsed
+                decision["iron_condor_stop_loss"] = self.risk_manager.stop_loss_for_iron_condor(sold_premium, elapsed)
             self.logger.info("Risk decision: %s", decision)
             return decision
         except Exception as exc:
@@ -609,6 +634,87 @@ class GreyEnhancedPhase1Engine:
             "composite_score": signal.get("composite_score"),
             "module_vector": signal.get("module_vector", {}),
         }
+
+    def _build_parallel_ab_test_result(
+        self,
+        *,
+        module_outputs: Mapping[str, Any],
+        session_state: str,
+        gemini_reasoning: Mapping[str, Any] | None,
+    ) -> dict:
+        """Build fair same-tick baseline and Gemini signal packets."""
+        if not self.ab_test_mode:
+            return {
+                "enabled": False,
+                "baseline_direction": None,
+                "baseline_confidence": None,
+                "baseline_score": None,
+                "gemini_direction": None,
+                "gemini_confidence": None,
+                "gemini_score": None,
+                "both_correct": None,
+                "baseline_only_correct": None,
+                "gemini_only_correct": None,
+            }
+        try:
+            core_modules = {"REGIME", "VIX_REGIME", "OPTIONS_FLOW", "PCR", "EXPIRY_CYCLE", "GLOBAL"}
+            baseline_outputs = {
+                module_id: output
+                for module_id, output in module_outputs.items()
+                if str(module_id).upper() in core_modules
+            }
+            baseline_signal = self.aggregator.aggregate(dict(baseline_outputs), session_state)
+
+            gemini_outputs = dict(baseline_outputs)
+            gemini_packet = self._gemini_module_packet(gemini_reasoning)
+            if gemini_packet is not None:
+                gemini_outputs["GEMINI"] = gemini_packet
+            gemini_signal = self.aggregator.aggregate(gemini_outputs, session_state)
+
+            result = {
+                "enabled": True,
+                "baseline_direction": baseline_signal.get("direction_bias"),
+                "baseline_confidence": baseline_signal.get("confidence"),
+                "baseline_score": baseline_signal.get("composite_score"),
+                "gemini_direction": gemini_signal.get("direction_bias"),
+                "gemini_confidence": gemini_signal.get("confidence"),
+                "gemini_score": gemini_signal.get("composite_score"),
+                "both_correct": None,
+                "baseline_only_correct": None,
+                "gemini_only_correct": None,
+                "baseline_correct": None,
+                "gemini_correct": None,
+                "baseline_module_vector": baseline_signal.get("module_vector", {}),
+                "gemini_module_vector": gemini_signal.get("module_vector", {}),
+            }
+            self.logger.info("Parallel A/B signal: %s", result)
+            return result
+        except Exception as exc:
+            self.logger.warning("Parallel A/B logging failed safely: %s", exc)
+            return {
+                "enabled": True,
+                "error": str(exc),
+                "baseline_direction": None,
+                "baseline_confidence": None,
+                "baseline_score": None,
+                "gemini_direction": None,
+                "gemini_confidence": None,
+                "gemini_score": None,
+                "both_correct": None,
+                "baseline_only_correct": None,
+                "gemini_only_correct": None,
+            }
+
+    def _time_in_trade_minutes(self, signal: Mapping[str, Any], market_data: Mapping[str, Any]) -> int:
+        """Calculate elapsed minutes from trade entry timestamp or explicit input."""
+        explicit = self._to_float(market_data.get("time_in_trade_minutes"))
+        if explicit is not None:
+            return max(0, int(explicit))
+        entry = self._parse_dt(signal.get("trade_entry_time") or market_data.get("trade_entry_time"))
+        now_dt = self._parse_dt(market_data.get("timestamp")) or datetime.now()
+        if entry is None:
+            return 0
+        return max(0, int((now_dt - entry).total_seconds() // 60))
 
     def _optional_news_aggregator(self) -> Any | None:
         """Initialize news only when explicitly enabled."""
@@ -686,6 +792,16 @@ class GreyEnhancedPhase1Engine:
                 "microstructure": result.get("microstructure"),
                 "risk_decision": result.get("enhanced_signal", {}).get("risk_decision"),
                 "ab_test": result.get("ab_test"),
+                "parallel_ab_test": result.get("parallel_ab_test"),
+                "baseline_direction": result.get("baseline_direction"),
+                "baseline_confidence": result.get("baseline_confidence"),
+                "baseline_score": result.get("baseline_score"),
+                "gemini_direction": result.get("gemini_direction"),
+                "gemini_confidence": result.get("gemini_confidence"),
+                "gemini_score": result.get("gemini_score"),
+                "both_correct": result.get("both_correct"),
+                "baseline_only_correct": result.get("baseline_only_correct"),
+                "gemini_only_correct": result.get("gemini_only_correct"),
             }
             with self.journal_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, default=str, sort_keys=True) + "\n")
@@ -804,6 +920,21 @@ class GreyEnhancedPhase1Engine:
         if value is None:
             return default
         return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _parse_dt(value: Any) -> datetime | None:
+        """Parse common ISO timestamp values safely."""
+        if isinstance(value, datetime):
+            return value.replace(tzinfo=None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+            if text.endswith("Z"):
+                text = f"{text[:-1]}+00:00"
+            return datetime.fromisoformat(text).replace(tzinfo=None)
+        except ValueError:
+            return None
 
     @staticmethod
     def _memory_usage_text() -> str:
